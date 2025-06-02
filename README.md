@@ -164,24 +164,6 @@ MyFS provides comprehensive logging:
 3. Provide master password
 4. Allow repair process to complete
 
-## 🤝 Contributing
-
-We welcome contributions! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## 📞 Support
-
-- **Issues**: Open GitHub issues for bugs or feature requests
-- **Documentation**: Check README_EN.md or README_VI.md for detailed guides
-- **Logs**: Review log files for error details
-
 ---
 
 **MyFS** - Enterprise-grade secure file management with comprehensive protection and recovery capabilities.
