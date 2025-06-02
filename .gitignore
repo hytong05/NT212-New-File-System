@@ -146,6 +146,12 @@ replace_debug_prints.py
 test_file_listing_fix.py
 emergency_recovery.py
 FIX_SUMMARY.md
+prepare_repository.py
+GITHUB_GUIDELINES.md
+
+# Demo and test directories
+demo/
+tests/
 
 # MyFS volumes and data
 *.myfs
