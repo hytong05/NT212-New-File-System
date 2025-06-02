@@ -3,6 +3,9 @@ import sys
 import getpass
 from filesystem.myfs import MyFS
 from security.authentication import Authentication
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from src.utils.logger import logger
+from src.security.integrity import integrity_checker
 
 class CLI:
     def __init__(self):
@@ -15,22 +18,38 @@ class CLI:
         print("MyFS - Secure File System")
         print("="*50)
         
+        logger.info("MyFS CLI started")
+        
         # Verify system integrity
         if not self._verify_system():
             print("System integrity check failed. Exiting...")
+            logger.critical("System integrity check failed - exiting")
             sys.exit(1)
             
         # Authenticate user with dynamic password
         if not self._authenticate():
             print("Authentication failed. Exiting...")
+            logger.warning("Authentication failed - exiting")
             sys.exit(1)
             
         self._main_menu()
     
     def _verify_system(self):
         """Verify system integrity and check if running on original machine"""
-        # This would be implemented with actual system checks
-        return True
+        try:
+            logger.info("Verifying system integrity...")
+            
+            # Check system integrity
+            if not integrity_checker.verify_system_integrity():
+                logger.error("System integrity verification failed")
+                return False
+                
+            logger.info("System integrity verified successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"System verification error: {e}")
+            return False
         
     def _authenticate(self):
         """Authenticate user with dynamic password"""
@@ -48,9 +67,13 @@ class CLI:
             print("5. Import file to MyFS")
             print("6. Export file from MyFS")
             print("7. Delete file from MyFS")
-            print("8. Exit")
+            print("8. Recover deleted file")
+            print("9. View deleted files")
+            print("10. Purge deleted files")
+            print("11. Repair MyFS volume")
+            print("12. Exit")
             
-            choice = input("\nEnter your choice (1-8): ")
+            choice = input("\nEnter your choice (1-12): ")
             
             if choice == '1':
                 self._create_format_myfs()
@@ -67,7 +90,16 @@ class CLI:
             elif choice == '7':
                 self._delete_file()
             elif choice == '8':
+                self._recover_file()
+            elif choice == '9':
+                self._view_deleted_files()
+            elif choice == '10':
+                self._purge_deleted_files()
+            elif choice == '11':
+                self._repair_myfs_volume()
+            elif choice == '12':
                 print("Exiting MyFS. Goodbye!")
+                logger.info("MyFS CLI exited")
                 break
             else:
                 print("Invalid choice. Please try again.")
@@ -165,92 +197,104 @@ class CLI:
         except Exception as e:
             print(f"Error changing MyFS password: {e}")
     
-    def _list_files(self):
-        """List all files in the MyFS volume"""
+    def _authenticate_and_open_myfs(self):
+        """Authenticate and open a MyFS volume with better error handling"""
         try:
-            # Check if we have a MyFS instance
-            need_authentication = False
+            if hasattr(self, 'myfs') and self.myfs:
+                # Already authenticated
+                return True
+                
+            path = input("Enter path to MyFS.DRI file: ")
+            metadata_path = input("Enter path to metadata file: ")
+            password = getpass.getpass("Enter master password: ")
             
-            if not hasattr(self, 'myfs') or not self.myfs:
-                need_authentication = True
-            elif not hasattr(self.myfs, 'dri_path') or not hasattr(self.myfs, 'master_key'):
-                need_authentication = True
+            if not os.path.exists(path):
+                print(f"Error: MyFS file not found: {path}")
+                return False
                 
-            if need_authentication:
-                path = input("Enter path to MyFS.DRI file: ")
-                metadata_path = input("Enter path to metadata file: ")
-                password = getpass.getpass("Enter master password: ")
+            if not os.path.exists(metadata_path):
+                print(f"Error: Metadata file not found: {metadata_path}")
+                return False
+            
+            # Check machine authorization first
+            if not integrity_checker.verify_machine_authorization(path):
+                print("Error: This machine is not authorized to access this MyFS volume.")
+                logger.error(f"Machine authorization failed for {path}")
+                return False
                 
-                if not os.path.exists(path):
-                    print(f"Error: MyFS file not found: {path}")
-                    return
-                    
-                if not os.path.exists(metadata_path):
-                    print(f"Error: Metadata file not found: {metadata_path}")
-                    return
-                    
-                # Create a new MyFS instance
-                self.myfs = MyFS()
-                self.myfs.dri_path = path
-                self.myfs.metadata_path = metadata_path
+            # Create a new MyFS instance
+            self.myfs = MyFS()
                 
-                # Temporary authentication for testing
-                print("Debug - Setting temporary master key for testing")
+            # Open the volume
+            try:
+                logger.debug("Setting temporary master key for testing")
                 from security.encryption import Encryption
-                temp_encryption = Encryption()
-                key_data = temp_encryption.generate_key_from_password(password)
-                self.myfs.master_key = key_data["key"]
-                self.myfs.metadata = {"key_verification": temp_encryption.generate_verification_hash(self.myfs.master_key)}
-                self.myfs.encryption = temp_encryption  # Make sure encryption object is available
+                self.myfs.encryption = Encryption()
+                success = self.myfs.open_volume(path, metadata_path, password)
                 
-                print("Authentication successful!")
+                if success:
+                    print("Authentication successful!")
+                    logger.info(f"Successfully opened MyFS volume: {path}")
+                    return True
+                else:
+                    print("Failed to open MyFS volume.")
+                    logger.warning("Failed to open MyFS volume")
+                    return False
+                    
+            except Exception as open_error:
+                print(f"Error opening MyFS volume: {open_error}")
+                logger.error(f"Error opening MyFS volume: {open_error}")
+                return False
                 
-            # Try to initialize file table if not already loaded
-            if not hasattr(self.myfs, 'file_table'):
-                try:
-                    self.myfs._load_file_table()
-                except Exception as load_error:
-                    print(f"Debug - Error pre-loading file table: {str(load_error)}")
-                    # Initialize as empty if it fails
-                    self.myfs.file_table = {"files": [], "deleted_files": []}
-        
-            # Get the list of files
-            files = self.myfs.list_files()
-            
-            if not files:
-                print("No files found in MyFS volume.")
-                return
-                
-            # Display file information
-            print("\n{:<30} {:<12} {:<20} {:<10}".format(
-                "File Name", "Size (bytes)", "Import Time", "Protected"))
-            print("-" * 75)
-            
-            for file in files:
-                # Format date/time for display
-                import_time = file.get("import_time", "Unknown")
-                if import_time != "Unknown":
-                    try:
-                        # Parse ISO format and convert to readable format
-                        from datetime import datetime
-                        dt = datetime.fromisoformat(import_time)
-                        import_time = dt.strftime("%Y-%m-%d %H:%M")
-                    except:
-                        pass
-                        
-                print("{:<30} {:<12} {:<20} {:<10}".format(
-                    file.get("name", "Unknown")[:30], 
-                    file.get("size", 0), 
-                    import_time[:20],
-                    "Yes" if file.get("password_protected", False) else "No"
-                ))
-                
-            print("\nTotal files: {}".format(len(files)))
-            
         except Exception as e:
-            print(f"Error listing files: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Authentication error: {e}")
+            logger.error(f"Authentication error: {e}")
+            return False
+
+    def _list_files(self):
+        """List files in MyFS with improved error handling"""
+        try:
+            # Authenticate if needed
+            if not hasattr(self, 'myfs') or not self.myfs:
+                if not self._authenticate_and_open_myfs():
+                    return
+                    
+            # Get file list
+            try:
+                files = self.myfs.list_files()
+                
+                if not files:
+                    print("No files found in MyFS volume.")
+                    return
+                    
+                # Display files
+                print("\nFile Name                      Size (bytes) Import Time          Protected")
+                print("---------------------------------------------------------------------------")
+                
+                for file in files:
+                    name = file.get("name", "Unknown")
+                    size = file.get("size", 0)
+                    import_time = file.get("import_time", "Unknown")
+                    if import_time != "Unknown":
+                        # Format the timestamp to just show date and time
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(import_time)
+                            import_time = dt.strftime("%Y-%m-%d %H:%M")
+                        except:
+                            pass
+                            
+                    protected = "Yes" if file.get("password_protected", False) else "No"
+                    
+                    print(f"{name:<30} {size:<12} {import_time:<20} {protected}")
+                    
+                print(f"\nTotal files: {len(files)}")
+                
+            except Exception as list_error:
+                print(f"Error listing files: {list_error}")
+                
+        except Exception as e:
+            print(f"Error in list files operation: {e}")
     
     def _set_file_password(self):
         """Set or change password for a file in MyFS"""
@@ -582,6 +626,8 @@ class CLI:
     def _delete_file(self):
         """Delete a file from MyFS"""
         try:
+            logger.info("User initiated file deletion")
+            
             # First check if we have a MyFS instance
             need_authentication = False
             
@@ -591,75 +637,293 @@ class CLI:
                 need_authentication = True
                 
             if need_authentication:
-                path = input("Enter path to MyFS.DRI file: ")
-                metadata_path = input("Enter path to metadata file: ")
-                password = getpass.getpass("Enter master password: ")
-                
-                if not os.path.exists(path):
-                    print(f"Error: MyFS file not found: {path}")
+                if not self._authenticate_and_open_myfs():
                     return
                     
-                if not os.path.exists(metadata_path):
-                    print(f"Error: Metadata file not found: {metadata_path}")
+            # Check machine authorization
+            if not integrity_checker.verify_machine_authorization(self.myfs.dri_path):
+                print("Error: This machine is not authorized to access this MyFS volume.")
+                logger.error("Machine authorization failed for file deletion")
+                return
+                    
+            # List current files
+            try:
+                files = self.myfs.list_files()
+                
+                if not files:
+                    print("No files found in MyFS volume.")
                     return
                     
-                # Create a new MyFS instance
-                self.myfs = MyFS()
-                self.myfs.dri_path = path
-                self.myfs.metadata_path = metadata_path
+                print("\nCurrent files:")
+                for i, file in enumerate(files, 1):
+                    status = " (deleted)" if file.get("deleted", False) else ""
+                    print(f"{i}. {file.get('name', 'Unknown')}{status}")
                 
-                # Temporary authentication for testing
-                print("Debug - Setting temporary master key for testing")
-                from security.encryption import Encryption
-                temp_encryption = Encryption()
-                key_data = temp_encryption.generate_key_from_password(password)
-                self.myfs.master_key = key_data["key"]
-                self.myfs.metadata = {"key_verification": temp_encryption.generate_verification_hash(self.myfs.master_key)}
-                self.myfs.encryption = temp_encryption
+            except Exception as list_error:
+                print(f"Error listing files: {list_error}")
+                return
                 
-                # Load the file table
-                try:
-                    self.myfs._load_file_table()
-                except Exception as e:
-                    print(f"Error loading file table: {e}")
+            # Get file to delete
+            file_name = input("\nEnter name of file to delete: ")
+            
+            # Ask for deletion type
+            print("\nDeletion options:")
+            print("1. Mark as deleted (recoverable)")
+            print("2. Permanently delete")
+            
+            delete_choice = input("Choose deletion type (1-2): ")
+            permanent = delete_choice == '2'
+            
+            if permanent:
+                confirm = input(f"Permanently delete '{file_name}'? This cannot be undone. (y/n): ")
+                if confirm.lower() != 'y':
+                    print("Deletion cancelled.")
                     return
-            
-            # Get file list
-            files = self.myfs.list_files()
-            if not files:
-                print("No files found in MyFS volume.")
-                return
-                
-            # Show available files
-            print("\nAvailable files:")
-            for i, file in enumerate(files):
-                print(f"{i+1}. {file['name']} {'(Password protected)' if file.get('password_protected', False) else ''}")
-                
-            file_name = input("\nEnter the name of the file to delete: ")
-            
-            # Find the file in the list
-            selected_file = None
-            for file in files:
-                if file["name"] == file_name:
-                    selected_file = file
-                    break
                     
-            if not selected_file:
-                print(f"Error: File '{file_name}' not found.")
-                return
+            try:
+                success = self.myfs.delete_file(file_name, permanent=permanent)
+                if success:
+                    if permanent:
+                        print(f"File '{file_name}' permanently deleted.")
+                        logger.info(f"File permanently deleted: {file_name}")
+                    else:
+                        print(f"File '{file_name}' marked as deleted (recoverable).")
+                        logger.info(f"File marked as deleted: {file_name}")
+                        
+            except Exception as delete_error:
+                print(f"Error deleting file: {delete_error}")
+                logger.error(f"Error deleting file {file_name}: {delete_error}")
                 
-            # Confirm deletion
-            confirm = input(f"Are you sure you want to delete '{file_name}'? This cannot be undone. (y/n): ")
-            if confirm.lower() != 'y':
-                print("Deletion cancelled.")
-                return
-                
-            # Delete the file
-            self.myfs.delete_file(file_name)
-            print(f"File '{file_name}' has been deleted successfully.")
-            
         except Exception as e:
-            print(f"Error deleting file: {e}")
+            print(f"Error in delete file operation: {e}")
+            logger.error(f"Error in delete file operation: {e}")
+
+    def _recover_file(self):
+        """Recover a deleted file"""
+        try:
+            logger.info("User initiated file recovery")
+            
+            # First check if we have a MyFS instance
+            need_authentication = False
+            
+            if not hasattr(self, 'myfs') or not self.myfs:
+                need_authentication = True
+            elif not hasattr(self.myfs, 'dri_path') or not hasattr(self.myfs, 'master_key'):
+                need_authentication = True
+                
+            if need_authentication:
+                if not self._authenticate_and_open_myfs():
+                    return
+                    
+            # Check machine authorization
+            if not integrity_checker.verify_machine_authorization(self.myfs.dri_path):
+                print("Error: This machine is not authorized to access this MyFS volume.")
+                logger.error("Machine authorization failed for file recovery")
+                return
+                    
+            # List deleted files
+            try:
+                deleted_files = self.myfs.list_deleted_files()
+                
+                if not deleted_files:
+                    print("No deleted files found for recovery.")
+                    return
+                    
+                print("\nDeleted files (recoverable):")
+                for i, file in enumerate(deleted_files, 1):
+                    print(f"{i}. {file.get('name', 'Unknown')} (deleted: {file.get('deleted_time', 'Unknown')})")
+                
+            except Exception as list_error:
+                print(f"Error listing deleted files: {list_error}")
+                return
+                
+            # Get file to recover
+            file_name = input("\nEnter name of file to recover: ")
+                    
+            try:
+                success = self.myfs.recover_file(file_name)
+                if success:
+                    print(f"File '{file_name}' recovered successfully.")
+                    logger.info(f"File recovered: {file_name}")
+                        
+            except Exception as recover_error:
+                print(f"Error recovering file: {recover_error}")
+                logger.error(f"Error recovering file {file_name}: {recover_error}")
+                
+        except Exception as e:
+            print(f"Error in recover file operation: {e}")
+            logger.error(f"Error in recover file operation: {e}")
+
+    def _view_deleted_files(self):
+        """View all deleted files"""
+        try:
+            logger.info("User viewing deleted files")
+            
+            # First check if we have a MyFS instance
+            need_authentication = False
+            
+            if not hasattr(self, 'myfs') or not self.myfs:
+                need_authentication = True
+            elif not hasattr(self.myfs, 'dri_path') or not hasattr(self.myfs, 'master_key'):
+                need_authentication = True
+                
+            if need_authentication:
+                if not self._authenticate_and_open_myfs():
+                    return
+                    
+            # Check machine authorization
+            if not integrity_checker.verify_machine_authorization(self.myfs.dri_path):
+                print("Error: This machine is not authorized to access this MyFS volume.")
+                logger.error("Machine authorization failed for viewing deleted files")
+                return
+                    
+            # List deleted files
+            try:
+                deleted_files = self.myfs.list_deleted_files()
+                
+                if not deleted_files:
+                    print("No deleted files found.")
+                    return
+                    
+                print("\nDeleted Files (Recoverable):")
+                print("-" * 80)
+                print(f"{'Name':<30} {'Size (bytes)':<12} {'Deleted Time':<20} {'Protected'}")
+                print("-" * 80)
+                
+                for file in deleted_files:
+                    name = file.get("name", "Unknown")
+                    size = file.get("size", 0)
+                    deleted_time = file.get("deleted_time", "Unknown")
+                    
+                    if deleted_time != "Unknown":
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(deleted_time)
+                            deleted_time = dt.strftime("%Y-%m-%d %H:%M")
+                        except:
+                            pass
+                            
+                    protected = "Yes" if file.get("password_protected", False) else "No"
+                    
+                    print(f"{name:<30} {size:<12} {deleted_time:<20} {protected}")
+                    
+                print(f"\nTotal deleted files: {len(deleted_files)}")
+                
+            except Exception as list_error:
+                print(f"Error listing deleted files: {list_error}")
+                logger.error(f"Error listing deleted files: {list_error}")
+                
+        except Exception as e:
+            print(f"Error in view deleted files operation: {e}")
+            logger.error(f"Error in view deleted files operation: {e}")
+
+    def _purge_deleted_files(self):
+        """Permanently remove all deleted files"""
+        try:
+            logger.info("User initiated purge deleted files")
+            
+            # First check if we have a MyFS instance
+            need_authentication = False
+            
+            if not hasattr(self, 'myfs') or not self.myfs:
+                need_authentication = True
+            elif not hasattr(self.myfs, 'dri_path') or not hasattr(self.myfs, 'master_key'):
+                need_authentication = True
+                
+            if need_authentication:
+                if not self._authenticate_and_open_myfs():
+                    return
+                    
+            # Check machine authorization
+            if not integrity_checker.verify_machine_authorization(self.myfs.dri_path):
+                print("Error: This machine is not authorized to access this MyFS volume.")
+                logger.error("Machine authorization failed for purging deleted files")
+                return
+                    
+            # Show current deleted files
+            try:
+                deleted_files = self.myfs.list_deleted_files()
+                
+                if not deleted_files:
+                    print("No deleted files found to purge.")
+                    return
+                    
+                print(f"\nFound {len(deleted_files)} deleted files:")
+                for file in deleted_files:
+                    print(f"- {file.get('name', 'Unknown')}")
+                
+            except Exception as list_error:
+                print(f"Error listing deleted files: {list_error}")
+                return
+                
+            # Confirm purge
+            confirm = input(f"\nPermanently delete all {len(deleted_files)} deleted files? This cannot be undone. (y/n): ")
+            if confirm.lower() != 'y':
+                print("Purge cancelled.")
+                return
+                    
+            try:
+                purged_count = self.myfs.purge_deleted_files()
+                print(f"Successfully purged {purged_count} deleted files.")
+                logger.info(f"Purged {purged_count} deleted files")
+                        
+            except Exception as purge_error:
+                print(f"Error purging deleted files: {purge_error}")
+                logger.error(f"Error purging deleted files: {purge_error}")
+                
+        except Exception as e:
+            print(f"Error in purge deleted files operation: {e}")
+            logger.error(f"Error in purge deleted files operation: {e}")
+
+    def _repair_myfs_volume(self):
+        """Repair a corrupted MyFS volume"""
+        try:
+            logger.info("User initiated MyFS volume repair")
+            
+            # Get volume path
+            path = input("Enter path to MyFS.DRI file to repair: ")
+            
+            if not os.path.exists(path):
+                print(f"Error: MyFS file not found: {path}")
+                return
+                
+            print("Attempting to repair MyFS volume...")
+            print("This may take a few moments...")
+            
+            # Create a new MyFS instance for repair
+            myfs_repair = MyFS()
+            myfs_repair.dri_path = path
+            
+            # Try to repair without password first (basic integrity check)
+            try:
+                # Check if backup metadata exists
+                volume_dir = os.path.dirname(path)
+                volume_name = os.path.basename(path).split('.')[0]
+                backup_metadata = os.path.join(volume_dir, f"{volume_name}.IXF")
+                
+                if os.path.exists(backup_metadata):
+                    print(f"Found backup metadata: {backup_metadata}")
+                    password = getpass.getpass("Enter master password for repair: ")
+                    
+                    success = myfs_repair.repair_volume(password)
+                    if success:
+                        print("MyFS volume repaired successfully!")
+                        logger.info(f"Successfully repaired MyFS volume: {path}")
+                    else:
+                        print("Failed to repair MyFS volume. Volume may be severely corrupted.")
+                        logger.error(f"Failed to repair MyFS volume: {path}")
+                else:
+                    print("No backup metadata found. Cannot perform repair.")
+                    print("Repair requires backup metadata file (.IXF)")
+                    logger.warning(f"No backup metadata found for repair: {path}")
+                    
+            except Exception as repair_error:
+                print(f"Error during repair: {repair_error}")
+                logger.error(f"Error during repair of {path}: {repair_error}")
+                
+        except Exception as e:
+            print(f"Error in repair operation: {e}")
+            logger.error(f"Error in repair operation: {e}")
 
 def main():
     cli = CLI()

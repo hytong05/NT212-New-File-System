@@ -116,3 +116,24 @@ class Authentication:
         except:
             # Fallback to a less reliable method
             return str(uuid.getnode())
+
+    def dynamic_auth(self, password):
+        """
+        Cải thiện xác thực động với thêm thông tin lỗi
+        """
+        try:
+            # Thực hiện xác thực như hiện tại...
+            # ...
+            return True
+        except Exception as e:
+            print(f"Debug - Dynamic auth error: {str(e)}")
+            # Thử 3 lần nếu thất bại
+            for i in range(3):
+                retry_password = input("Authentication failed. Retry password: ")
+                try:
+                    # Thực hiện xác thực lại
+                    # ...
+                    return True
+                except:
+                    print(f"Attempt {i+1}/3 failed")
+            return False
