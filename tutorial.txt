@@ -1,0 +1,140 @@
+Demo từng chức năng
+Chức năng 1: Tạo/Định dạng MyFS.DRI
+Thực hiện:
+
+Chạy chương trình: python src/main.py
+Nhập mật khẩu động (mật khẩu mặc định: myfs-20250602) - ngày hiện tại
+Chọn tùy chọn 1: "Create/Format MyFS volume"
+Nhập đường dẫn cho file MyFS.DRI (ví dụ: D:\cloud_disk\MyFS.DRI)
+Nhập đường dẫn cho metadata trên removable disk (ví dụ: E:\myfs_metadata.key)
+Đặt mật khẩu chính (ví dụ: secure_password123)
+Kết quả:
+
+File MyFS.DRI được tạo trong thư mục cloud disk
+File metadata được tạo trong removable disk
+Thông báo "MyFS volume created successfully" hiển thị
+Chức năng 2: Thiết lập/Đổi/Kiểm tra mật khẩu MyFS
+Thực hiện:
+
+Trong menu chính, chọn tùy chọn 2: "Change MyFS password"
+Nhập mật khẩu hiện tại (từ bước trước: secure_password123)
+Nhập mật khẩu mới (ví dụ: new_password789)
+Nhập lại mật khẩu mới để xác nhận
+Kiểm tra:
+
+Thoát và khởi động lại chương trình
+Sau khi nhập mật khẩu động, thử truy cập với mật khẩu cũ
+Sau đó thử lại với mật khẩu mới
+Chức năng 3: Liệt kê danh sách tập tin
+Thiết lập:
+
+Chuẩn bị một vài tập tin mẫu trên máy tính (text, image, etc.)
+Thực hiện:
+
+Trong menu chính, chọn tùy chọn 3: "List files in MyFS"
+Ban đầu, danh sách sẽ trống vì chưa có tập tin nào
+Chức năng 4 & 6: Import tập tin và đặt/đổi mật khẩu cho tập tin
+Thực hiện Import:
+
+Trong menu chính, chọn tùy chọn 5: "Import file to MyFS"
+Nhập đường dẫn đến tập tin muốn import (ví dụ: D:\documents\secret.txt)
+Chọn có/không đặt mật khẩu cho tập tin
+Nếu chọn có, nhập mật khẩu (ví dụ: file_password)
+Thực hiện đổi mật khẩu tập tin:
+
+Trong menu chính, chọn tùy chọn 4: "Set/Change file password"
+Chọn tập tin từ danh sách đã import (ví dụ: secret.txt)
+Nhập mật khẩu hiện tại của tập tin
+Nhập mật khẩu mới cho tập tin
+Xác nhận mật khẩu mới
+Kiểm tra:
+
+Liệt kê danh sách tập tin (tùy chọn 3) để xác nhận tập tin đã được import
+Kiểm tra xem tập tin đã được mã hóa hay chưa bằng cách kiểm tra nội dung file MyFS.DRI
+Chức năng 5: Mã hóa dữ liệu (kiểm tra kết quả khác nhau)
+Thực hiện:
+
+Import cùng một tập tin nhiều lần với cùng một mật khẩu
+Sử dụng một công cụ hex editor để kiểm tra nội dung của MyFS.DRI
+Quan sát rằng mỗi bản mã của cùng một tập tin đều khác nhau
+Chức năng 6: Export tập tin
+Thực hiện:
+
+Trong menu chính, chọn tùy chọn 6: "Export file from MyFS"
+Chọn tập tin muốn export từ danh sách
+Nếu tập tin có mật khẩu, nhập mật khẩu
+Chọn đường dẫn đích cho tập tin export:
+Chọn vị trí mới (ví dụ: D:\exported\secret.txt)
+Hoặc chọn khôi phục về vị trí gốc
+Kiểm tra:
+
+Mở tập tin đã export để kiểm tra nội dung đã được giải mã đúng
+Chức năng 7: Xóa tập tin
+Thực hiện xóa thông thường:
+
+Trong menu chính, chọn tùy chọn 7: "Delete file from MyFS"
+Chọn tập tin muốn xóa
+Chọn chế độ xóa: "Normal delete (recoverable)"
+Xác nhận xóa
+Thực hiện phục hồi:
+
+Trong menu chính, chọn tùy chọn phục hồi (có thể là submenu của tùy chọn 7)
+Chọn tập tin đã xóa từ danh sách
+Xác nhận phục hồi
+Thực hiện xóa vĩnh viễn:
+
+Trong menu chính, chọn tùy chọn 7: "Delete file from MyFS"
+Chọn tập tin muốn xóa
+Chọn chế độ xóa: "Permanent delete (unrecoverable)"
+Xác nhận xóa
+Chức năng 8: Mật khẩu động
+Chuẩn bị:
+
+Hiểu công thức tính mật khẩu động: Mật khẩu dựa trên ngày hiện tại (myfs-YYYYMMDD)
+Ví dụ vào ngày 2/6/2025: myfs-20250602
+Thực hiện:
+
+Thoát khỏi chương trình
+Khởi động lại: python src/main.py
+Nhập mật khẩu động chính xác
+Sau đó, thử khởi động lại và nhập mật khẩu sai để xem chương trình từ chối
+Chức năng 9: Kiểm tra máy tính
+Thực hiện:
+
+Tạo một bản sao của MyFS.DRI và metadata
+Nếu có thể, thử chạy trên máy tính khác để thấy chương trình từ chối
+Hoặc chỉnh sửa file metadata để giả mạo thông tin hệ thống và thấy chương trình phát hiện
+Chức năng 10: Tự phát hiện và sửa chữa
+Thực hiện:
+
+Sử dụng hex editor để thay đổi nhẹ nội dung file thực thi của chương trình
+Chạy chương trình và quan sát cơ chế tự sửa chữa
+Hoặc thay đổi một phần nhỏ của MyFS.DRI và xem cơ chế khôi phục hoạt động
+Một phiên demo đầy đủ
+Dưới đây là kịch bản demo hoàn chỉnh:
+
+Tạo MyFS.DRI:
+
+Chạy chương trình và nhập mật khẩu động
+Tạo MyFS.DRI và file metadata
+Import vài tập tin:
+
+Import file text không có mật khẩu
+Import file hình ảnh với mật khẩu
+Import file văn bản lớn (>100MB)
+Liệt kê và kiểm tra:
+
+Xem danh sách tập tin
+Đổi mật khẩu cho một tập tin
+Export một tập tin và kiểm tra nội dung
+Kiểm tra tính bảo mật:
+
+Xóa một tập tin (xóa thường)
+Phục hồi tập tin đã xóa
+Xóa vĩnh viễn một tập tin khác
+Demo tính năng bảo vệ:
+
+Thay đổi file MyFS.DRI và thấy cảnh báo
+Sửa đổi chương trình và thấy tự phục hồi
+Thử truy cập từ máy khác
+Với hướng dẫn này, bạn có thể thực hiện demo đầy đủ 10 chức năng của hệ thống MyFS một cách hiệu quả và trực quan.
